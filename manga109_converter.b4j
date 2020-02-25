@@ -1,0 +1,123 @@
+﻿AppType=JavaFX
+Build1=Default,b4j.example
+File1=main.bjl
+FileGroup1=Default Group
+Group=Default Group
+Library1=jcore
+Library2=jfx
+Library3=xml2map
+Library4=json
+NumberOfFiles=1
+NumberOfLibraries=4
+NumberOfModules=0
+Version=7.8
+@EndOfDesignText@
+#Region Project Attributes 
+	#MainFormWidth: 600
+	#MainFormHeight: 600 
+#End Region
+
+Sub Process_Globals
+	Private fx As JFX
+	Private MainForm As Form
+	Private Label1 As Label
+End Sub
+
+Sub AppStart (Form1 As Form, Args() As String)
+	MainForm = Form1
+	MainForm.RootPane.LoadLayout("main") 'Load the layout file.
+	MainForm.Show
+End Sub
+
+'Return true to allow the default exceptions handler to handle the uncaught exception.
+Sub Application_Error (Error As Exception, StackTrace As String) As Boolean
+	Return True
+End Sub
+
+
+Sub convertAll
+	Dim projectFile As Map
+	projectFile.Initialize
+	Dim imgMap As Map
+	imgMap.Initialize
+	
+	For Each filename As String In File.ListFiles(Label1.Text)
+		If filename.EndsWith(".xml") Then
+			Log(filename)
+			Dim oneImg As Map = convertOneXml(Label1.Text,filename)
+			filename=filename.Replace(".xml","")
+			Dim parts As List
+			parts.Initialize
+			parts.AddAll(Regex.Split("_",filename))
+			Dim index As Int=parts.Get(parts.Size-1)
+			imgMap.Put(index&".jpg",oneImg)
+		End If
+	Next
+	projectFile.Put("images",imgMap)
+	projectFile.Put("dirPath",File.Combine(Label1.Text,"out"))
+	Dim json As JSONGenerator
+	json.Initialize(projectFile)
+	File.WriteString(File.DirApp,"out.itp",json.ToPrettyString(4))
+End Sub
+
+Sub convertOneXml(dir As String,filename As String) As Map
+	Dim xml As String=File.ReadString(dir,filename)
+	Dim x2m As Xml2Map
+	x2m.Initialize
+	Dim map1 As Map = x2m.Parse(xml)
+	Dim opencv_storage As Map=map1.Get("opencv_storage")
+	Dim true_regions As Map=opencv_storage.Get("true_regions")
+	Dim items As List
+	items=GetElements(true_regions,"_")
+    Dim oneImg As Map
+	oneImg.Initialize
+	Dim boxes As List
+	boxes.Initialize
+	For Each item As Map In items
+		Dim box As Map
+		box.Initialize
+		Dim boxGeometry As Map
+		boxGeometry.Initialize
+		Dim bounding_box As String=item.Get("bounding_box")
+		bounding_box=bounding_box.Trim
+		Dim X,Y,width,height As Int
+		X=Regex.Split(" ",bounding_box)(0)
+		Y=Regex.Split(" ",bounding_box)(1)
+		width=Regex.Split(" ",bounding_box)(2)
+		height=Regex.Split(" ",bounding_box)(3)
+		boxGeometry.Put("X",X)
+		boxGeometry.Put("Y",Y)
+		boxGeometry.Put("width",width)
+		boxGeometry.Put("height",height)
+		box.Put("text","")
+		box.Put("geometry",boxGeometry)
+		boxes.Add(box)
+	Next
+	oneImg.Put("boxes",boxes)
+	Return oneImg
+End Sub
+
+
+Sub GetElements (m As Map, key As String) As List
+	Dim res As List
+	If m.ContainsKey(key) = False Then
+		res.Initialize
+		Return res
+	Else
+		Dim value As Object = m.Get(key)
+		If value Is List Then Return value
+		res.Initialize
+		res.Add(value)
+		Return res
+	End If
+End Sub
+
+Sub Button1_MouseClicked (EventData As MouseEvent)
+	convertAll
+End Sub
+
+Sub Button2_MouseClicked (EventData As MouseEvent)
+	Dim dc As DirectoryChooser
+	dc.Initialize
+	Label1.Text=dc.Show(MainForm)
+End Sub
