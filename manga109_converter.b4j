@@ -55,6 +55,7 @@ Sub convertAll
 	Next
 	projectFile.Put("images",imgMap)
 	projectFile.Put("dirPath",File.Combine(Label1.Text,"out"))
+	addSettings(projectFile)
 	Dim json As JSONGenerator
 	json.Initialize(projectFile)
 	File.WriteString(File.DirApp,"out.itp",json.ToPrettyString(4))
@@ -74,6 +75,10 @@ Sub convertOneXml(dir As String,filename As String) As Map
 	Dim boxes As List
 	boxes.Initialize
 	For Each item As Map In items
+		Dim label As String=item.Get("label")
+		If label="0" Then
+			Continue
+		End If
 		Dim box As Map
 		box.Initialize
 		Dim boxGeometry As Map
@@ -91,10 +96,26 @@ Sub convertOneXml(dir As String,filename As String) As Map
 		boxGeometry.Put("height",height)
 		box.Put("text","")
 		box.Put("geometry",boxGeometry)
+		box.Put("fontstyle",label)
 		boxes.Add(box)
 	Next
 	oneImg.Put("boxes",boxes)
 	Return oneImg
+End Sub
+
+Sub addSettings(projectFile As Map)
+	Dim settings As Map
+	settings.Initialize
+	Dim fontStyles As List
+	fontStyles.Initialize
+	For i=0 To 4 
+		Dim fontstyle As Map
+		fontstyle.Initialize
+		fontstyle.Put("name",i)
+		fontStyles.Add(fontstyle)
+	Next
+	settings.Put("fontStyles",fontStyles)
+	projectFile.Put("settings",settings)
 End Sub
 
 
@@ -121,3 +142,39 @@ Sub Button2_MouseClicked (EventData As MouseEvent)
 	dc.Initialize
 	Label1.Text=dc.Show(MainForm)
 End Sub
+
+Sub Button3_MouseClicked (EventData As MouseEvent)
+	Dim projectFile As Map
+	For Each filename As String In File.ListFiles(File.DirApp)
+		If filename.EndsWith(".itp") Then
+			Dim one As Map
+			Dim json As JSONParser
+			json.Initialize(File.ReadString(File.DirApp,filename))
+			one=json.NextObject
+			If projectFile.IsInitialized=False Then
+				projectFile=one
+				Dim imgMap As Map
+				imgMap.Initialize
+				projectFile.Put("images",imgMap)
+			End If
+			Dim imgMapFromThisOne As Map
+			imgMapFromThisOne=one.Get("images")
+			Dim dirPathOfThisOne As String=one.Get("dirPath")
+			Dim imgMap As Map=projectFile.Get("images")
+			Log(imgMap.IsInitialized)
+			Log(projectFile.IsInitialized)
+			Dim projectName As String=filename.Replace(".itp","")
+			Dim projectDir As String=File.Combine(dirPathOfThisOne,projectName)
+			For Each imgName As String In imgMapFromThisOne.Keys
+				Dim oneImg As Map=imgMapFromThisOne.Get(imgName)
+				imgName=File.Combine(projectDir,imgName)
+				imgName=imgName.Replace(dirPathOfThisOne,"")
+				imgMap.Put(imgName,oneImg)
+			Next
+		End If
+	Next
+	Dim jsonG As JSONGenerator
+	jsonG.Initialize(projectFile)
+	File.WriteString(File.DirApp,"merged.itp",jsonG.ToPrettyString(4))
+End Sub
+
